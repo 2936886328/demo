@@ -1,0 +1,545 @@
+<!doctype html>
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="initial-scale=1.0, user-scalable=no, width=device-width">
+    <style>
+        html,
+        body,
+        #container {
+            width: 100%;
+            height: 100%;
+        }
+
+        #container,
+        #ontainer {
+            width: 80%;
+            height: 70%;
+            margin: 10px 200px;
+        }
+
+        #panel {
+            position: fixed;
+            background-color: white;
+            max-height: 90%;
+            overflow-y: auto;
+            top: 10px;
+            right: 10px;
+            width: 280px;
+        }
+
+        #panel .amap-call {
+            background-color: #009cf9;
+            border-top-left-radius: 4px;
+            border-top-right-radius: 4px;
+        }
+
+        #panel .amap-lib-driving {
+            border-bottom-left-radius: 4px;
+            border-bottom-right-radius: 4px;
+            overflow: hidden;
+        }
+
+        #origin,
+        #destination {
+            width: 200px;
+        }
+
+        .inputBox {
+            width: 300px;
+            margin: 20px auto;
+        }
+
+        .searchBtn {
+            width: 100px;
+            text-align: center;
+            padding: 3px;
+            background: rgb(43, 171, 245);
+            border-radius: 5px;
+            font-size: 20px;
+            color: #fff;
+        }
+
+        .btnBox {
+            width: 400px;
+            margin: 0 auto;
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            vertical-align: baseline;
+        }
+        .marker {
+            padding: 3px;
+            background: rgb(70 99 138);
+            font-weight: bold;
+            color: #fff;
+        }
+    </style>
+    <title>位置经纬度 + 获取驾车规划数据</title>
+    <script type="text/javascript">
+        window._AMapSecurityConfig = {
+            securityJsCode: '181ad54cee76282469eedd40f6f4fa3f',
+        }
+    </script>
+    <link rel="stylesheet" href="https://a.amap.com/jsapi_demos/static/demo-center/css/demo-center.css" />
+    <script src="https://a.amap.com/jsapi_demos/static/demo-center/js/demoutils.js"></script>
+    <script type="text/javascript"
+        src="https://webapi.amap.com/maps?v=1.4.15&key=f871d35959c759030b26a29f504a3371&plugin=AMap.Driving,AMap.Autocomplete,AMap.PolyEditor"></script>
+</head>
+
+<body>
+    <div id="container"></div>
+    <div id="panel"></div>
+    <div class="inputBox">起点：<input type="text" id="origin" onchange="input('origin')" /></div>
+    <div class="inputBox">终点: <input type="text" id="destination" onchange="input('destination')" /></div>
+    <div class="btnBox">
+        <div class="btn inline" onclick="searchClick()">路线规划</div>
+        <button class="btn inline" onclick="startDraw()">开始绘制</button>
+        <button class="btn inline" onclick="endDraw()">结束绘制</button>
+        <button class="btn inline" onclick="removeDraw()">移除路线</button>
+        <button class="btn inline" onclick="removeScheme()">清除规划结果</button>
+        <!-- <button class="btn inline" onclick="show()">显示不同路线</button>  -->
+    </div>
+    <script type="text/javascript">
+
+        // 存储绘制路线所有的点 
+        let arr = []
+        let markersArr = []
+        console.log('arr', arr)
+
+        // 测试
+        let a = {}
+
+        const show = () => {
+
+
+            console.log('arr', arr)
+
+            a = new AMap.Polyline({
+                path: arr,
+                // path: [],
+                isOutline: true,
+                outlineColor: 'red',
+                borderWeight: 3,
+                // strokeColor: "#3366FF", 
+                strokeOpacity: 1,
+                strokeWeight: 6,
+                // 折线样式还支持 'dashed'
+                strokeStyle: "solid",
+                // strokeStyle是dashed时有效
+                strokeDasharray: [10, 5],
+                lineJoin: 'round',
+                lineCap: 'round',
+                zIndex: 50,
+                showDir: true
+
+            })
+
+            a.setMap(map1)
+            // 缩放地图到合适的视野级别
+            map1.setFitView([a])
+        }
+
+
+        const origin = document.getElementById('origin')
+        const destination = document.getElementById('destination')
+        let originLatLng = []
+        let destinationLatLng = []
+        let polyline = {}
+        let polyEditor = {}
+
+        // 用于存储不同的路径规划方案
+        let scheme = []
+
+        let map = new AMap.Map("container", {
+            // center: [116.395577, 39.892257],
+            center: [113.18703, 22.84851],
+            zoom: 14
+        });
+
+        // 实例化点标记
+        function addMarker(lnglat) {
+            let div = document.createElement('div')
+            div.innerHTML = `<div class='marker'>${lnglat}</div>`
+            let marker = new AMap.Marker();
+            marker.setMap(map);
+            marker.setPosition(lnglat)
+            marker.setContent(div)
+            markersArr.push(marker)
+            div = null
+        }
+
+        // var map1 = new AMap.Map("ontainer", {
+        //     // center: [116.395577, 39.892257],
+        //     center: [113.18703, 22.84851],
+        //     zoom: 14
+        // });
+        //东经113.18703度,北纬22.84851度
+
+
+        // 搜索地点
+        // 起点
+        var searchAddressOrigin = new AMap.Autocomplete({ input: origin, datatype: 'poi' })
+
+        // 终点
+        var searchAddressDestination = new AMap.Autocomplete({ input: destination, datatype: 'poi' })
+
+        searchAddressDestination.on('select', function (e) {
+            const { lat, lng } = e.poi.location
+            console.log('select', lat, lng)
+            destinationLatLng = [lng, lat]
+        })
+
+        searchAddressOrigin.on('select', function (e) {
+            const { lat, lng } = e.poi.location
+            console.log('select', lat, lng)
+            originLatLng = [lng, lat]
+        })
+
+        // 地点输入
+        function input(type) {
+            removeDraw()
+            if (type == 'destination') {
+                searchAddressDestination.search(destination.value, (status, result) => {
+                    console.log('data', status, result)
+                })
+            } else {
+                searchAddressOrigin.search(origin.value, (status, result) => {
+                    console.log(status, result)
+                })
+            }
+        }
+
+        // 根据起终点、途径点经纬度规划驾车导航路线
+        function searchAddress(o, d, opt) {
+            const [oLng, oLat] = o
+            const [dLng, dLat] = d
+            const opts = { waypoints: opt }
+            // 行驶方案
+            Object.keys(AMap.DrivingPolicy).forEach(item => {
+
+                let drivingOption = {
+                    policy: AMap.DrivingPolicy[item], // 其它policy参数请参考 https://lbs.amap.com/api/javascript-api/reference/route-search#m_DrivingPolicy
+                    ferry: 1, // 是否可以使用轮渡
+                    province: '粤', // 车牌省份的汉字缩写 
+                    map: map,
+                    panel: 'panel'
+                }
+
+                let driving = new AMap.Driving(drivingOption)
+
+                scheme.push(driving)
+
+                // 构造路线导航类
+                driving.search(new AMap.LngLat(oLng, oLat), new AMap.LngLat(dLng, dLat), opts, function (status, result) {
+                    // result 即是对应的驾车导航信息，相关数据结构文档请参考  https://lbs.amap.com/api/javascript-api/reference/route-search#m_DrivingResult
+                    if (status === 'complete') {
+                        log.success('绘制驾车路线完成')
+                    } else {
+                        log.error('获取驾车数据失败：' + result)
+                    }
+                });
+            })
+        }
+
+        // 搜索路线
+        function searchClick() {
+
+            if (origin.value && destination.value) {
+                searchAddress(originLatLng, destinationLatLng)
+            }
+
+            if ((Object.keys(polyline).length)) {
+                const { originLatLng: o, destinationLatLng: d, opt } = getLineDetail()
+                searchAddress(o, d, opt)
+            }
+
+            // 起点终点、路径都没有的情况
+            log.error('请输入起点、终点或绘制路线')
+
+
+        }
+
+        // 生成polyline实例
+        function creatPolyline() {
+            // 绘制路线
+            polyline = new AMap.Polyline({
+                path: [],
+                isOutline: true,
+                // outlineColor: 'red',
+                borderWeight: 3,
+                strokeColor: "#3366FF",
+                strokeOpacity: 1,
+                strokeWeight: 6,
+                // 折线样式还支持 'dashed'
+                strokeStyle: "solid",
+                // strokeStyle是dashed时有效
+                strokeDasharray: [10, 5],
+                lineJoin: 'round',
+                lineCap: 'round',
+                zIndex: 50,
+                showDir: true
+            })
+
+            polyline.setMap(map)
+            // 缩放地图到合适的视野级别
+            map.setFitView([polyline])
+
+            polyEditor = new AMap.PolyEditor(map, polyline)
+
+
+            polyEditor.on('addnode', function (event) {
+                log.info('触发事件：addnode')
+            })
+
+            polyEditor.on('adjust', function (event) {
+                log.info('触发事件：adjust', event)
+                console.log(event)
+            })
+
+            polyEditor.on('removenode', function (event) {
+                log.info('触发事件：removenode')
+            })
+
+            polyEditor.on('end', function (event) {
+                log.info('触发事件： end')
+                // event.target 即为编辑后的折线对象
+            })
+
+            return polyline
+        }
+
+
+        // 获取绘制的线段信息
+        function getLineDetail() {
+
+            let lngLatArr = polyline.getPath()
+            lngLatArr = lngLatArr.map(item => !Array.isArray(item) ? [item.lng, item.lat] : item)
+            let originLatLng = lngLatArr[0]
+            let destinationLatLng = lngLatArr[lngLatArr.length - 1]
+
+            lngLatArr.shift()
+            lngLatArr.pop()
+
+            console.log('lngLatArr', lngLatArr)
+            return {
+                originLatLng,
+                destinationLatLng,
+                opt: lngLatArr
+            }
+        }
+
+
+        // 传入两个坐标并获取所有结果
+        function getCoordinatesBetweenPoints(point1, point2) {
+            // 解构传入的坐标参数
+            const [x1, y1] = point1;
+            const [x2, y2] = point2;
+
+            // 计算两点之间的水平和垂直距离
+            const deltaX = Math.abs(x2 - x1);
+            const deltaY = Math.abs(y2 - y1);
+
+            // 判断两点之间的方向
+            const directionX = x2 >= x1 ? 1 : -1;
+            const directionY = y2 >= y1 ? 1 : -1;
+
+            // 生成所有的坐标
+            const coordinates = [];
+            let x = x1;
+            let y = y1;
+
+            if (deltaX >= deltaY) {
+                const gradient = deltaY / deltaX;
+                for (let i = 0; i <= deltaX; i = i + 0.0001) {
+                    coordinates.push([x, y]);
+                    x += directionX;
+                    y += Math.round(gradient) * directionY;
+                }
+            } else {
+                const gradient = deltaX / deltaY;
+                for (let i = 0; i <= deltaY; i = i + 0.0001) {
+                    coordinates.push([x, y]);
+                    x += Math.round(gradient) * directionX;
+                    y += directionY;
+                }
+            }
+
+            arr.push(...coordinates)
+            return coordinates;
+        }
+
+
+        // 两点间的角度
+        function getAngleWithXAxis(startPoint, endPoint) {
+            const [x1, y1] = startPoint;
+            const [x2, y2] = endPoint;
+
+            const deltaX = x2 - x1;
+            const deltaY = y2 - y1;
+            let num = 0
+
+            if (deltaX === 0) {
+                if (deltaY > 0) {
+                    return Math.PI / 2; // 90度，直线与x轴垂直
+                } else if (deltaY < 0) {
+                    return (3 * Math.PI) / 2; // 270度，直线与x轴垂直
+                } else {
+                    return 0; // 0度，直线重合于x轴
+                }
+            }
+
+            const angle = Math.atan(deltaY / deltaX);
+
+            if (deltaX < 0) {
+                return angle + Math.PI; // 起始点在结束点的右侧，需要加上π弧度（180度）进行修正
+            } else if (deltaY < 0) {
+                return angle + 2 * Math.PI; // 终点在起始点的下方，需要加上2π弧度（360度）进行修正
+            } else {
+                return angle; // 正常情况下，返回计算得到的角度
+            }
+
+        }
+
+
+
+        const getAllPath = (s, e) => {
+            // const getAllPath = () => {
+            //     const s=[113.187808, 22.855782]
+            //     const e=[113.187808, 22.855622]
+            const allPathArr = []
+            const s1 = s.map(item => item * 1000000)
+            const e1 = e.map(item => item * 1000000)
+
+
+            if (s1[1] == e1[1] && s1[0] == e1[0]) return [];
+
+            let a = ((s1[1] - e1[1]) / (s1[0] - e1[0])).toFixed(6) * 1
+            isNaN(a) && (a = 1)
+            let b = s1[1] - a * s1[0]
+            let count = s1[0] - e1[0]
+            const step = 1
+            const nodeLastItem = arr.length ? arr[arr.length - 1] : null
+            if (isNaN(a) || isNaN(b)) {
+                //  
+            }
+
+            const handle = (i, isSecond) => {
+                let m = ((a * i + b) / 1000000).toFixed(6) * 1
+                let n = (i / 1000000).toFixed(6) * 1
+
+                if (isSecond) {
+                    let angle = getAngleWithXAxis(allPathArr[isSecond - 1], [n, m])
+                    allPathArr[isSecond - 1][2] = (angle * 180 / Math.PI).toFixed(6) * 1
+                }
+
+                allPathArr.push([n, m])
+            }
+
+            if (count < 0) {
+                let isSecond = 0
+                for (let i = s1[0]; i <= e1[0]; i = i + step) {
+                    handle(i, isSecond)
+                    isSecond++
+                }
+            } else if (count > 0) {
+                let isSecond = 0
+                for (let i = s1[0]; i >= e1[0]; i = i - step) {
+                    handle(i, isSecond)
+                    isSecond++
+                }
+            } else {
+                let flag = s1[1] - e1[1]
+                if (flag > 0) {
+                    for (let i = s1[1]; i >= e1[1]; i = i - step) {
+
+                        let n = (i / 1000000).toFixed(6) * 1
+                        allPathArr.push([s1[0], n])
+
+                    }
+
+                } else {
+                    for (let i = s1[1]; i <= e1[1]; i = i + step) {
+
+                        let n = (i / 1000000).toFixed(6) * 1
+                        allPathArr.push([s1[0], n])
+
+                    }
+                }
+            }
+            arr.push(...allPathArr)
+        }
+
+        // 点击事件的回调函数
+        function clickMap(e) {
+            console.log('点击map', e);
+            const { lat, lng } = e.lnglat
+            const path = [...polyline.getPath()]
+            path.push([lng, lat])
+            polyline.setPath(path)
+            addMarker([lng, lat])
+        }
+
+
+        // 开始绘制
+        function startDraw() {
+            removeDraw()
+            console.log('开始绘制')
+            origin.value = ''
+            destination.value = ''
+            creatPolyline()
+
+            map.on('click', clickMap)
+            polyEditor.open()
+        }
+
+        // 结束绘制
+        function endDraw() {
+            console.log('结束绘制')
+            map.off('click', clickMap)
+
+            const path = JSON.parse(JSON.stringify(polyline.getPath()))
+
+            if (path.length >= 2) {
+                path.forEach((item, index) => {
+                    // arr.push(['节点'+ index])
+                    !Array.isArray(path[index]) && (path[index] = [path[index].lng, path[index].lat])
+                    index >= 1 && getAllPath(path[index - 1], path[index])
+                })
+                console.log('arr111', arr)
+
+            }
+            polyEditor.close()
+
+
+        }
+
+        // 移除路线
+        function removeDraw() {
+            if (!(Object.keys(polyline).length)) return;
+            polyline?.setPath([])
+            polyline?.setMap()
+            polyline = {}
+            polyEditor = {}
+            arr = []
+
+            markersArr.forEach(item =>{
+                console.log(item)
+                item = {}
+            })
+        }
+
+        // 清除规划结果
+        function removeScheme() {
+            scheme.forEach(item => item.clear())
+        }
+
+
+    </script>
+
+    <script src="./websocket.js"></script>
+</body>
+
+</html>
