@@ -89,6 +89,7 @@
         src="https://webapi.amap.com/maps?v=1.4.15&key=f871d35959c759030b26a29f504a3371&plugin=AMap.Driving,AMap.Autocomplete,AMap.PolyEditor"></script>
 </head>
 
+
 <body>
     <div id="container"></div>
     <div id="panel"></div>
@@ -103,6 +104,22 @@
         <!-- <button class="btn inline" onclick="show()">显示不同路线</button>  -->
     </div>
     <script type="text/javascript">
+        // http://hnt.jetone.cn:8102/Api/Api/Order/HntGetRunningOrder?token=4BzMII/meNh8vRyaDZdgij-6LoQCijNlqjWiKYgJ50qlNYA0sQbIS9qYtCnyBaaLHJVqvDy2eNtYw1S-62bieM5e4FTRJuhr-rte5BLLtm6iM/g7qJEW4xymO7hG0VDLsDW9OKwUhwOBa/d77mjUU8NC0LM5qyyUHpYdjXzxYulCy0ymBXD-dPVWwg-OCr8=
+
+        // ajax
+        const request = () => {
+            const xhr = new XMLHttpRequest()
+            xhr.open('post', 'http://hnt.jetone.cn:8102/Api/Api/Order/HntGetRunningOrder?token=4BzMII/meNh8vRyaDZdgij-6LoQCijNlqjWiKYgJ50qlNYA0sQbIS9qYtCnyBaaLHJVqvDy2eNtYw1S-62bieM5e4FTRJuhr-rte5BLLtm6iM/g7qJEW4xymO7hG0VDLsDW9OKwUhwOBa/d77mjUU8NC0LM5qyyUHpYdjXzxYulCy0ymBXD-dPVWwg-OCr8=' )
+            xhr.onload = (res) => {
+                console.log('res', xhr)
+            }
+            xhr.onerror = (err) => {
+                console.log('err', err)
+            }
+            xhr.send()
+        }
+
+        request()
 
         // 存储绘制路线所有的点 
         let arr = []
